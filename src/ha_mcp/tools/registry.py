@@ -1,4 +1,4 @@
-"""Registry tools for querying Home Assistant device, entity, area, floor, and label registries."""
+"""Registry tools for querying Home Assistant device, entity, area, floor, label, and category registries."""
 
 import json
 import logging
@@ -98,6 +98,32 @@ def register_registry_tools(mcp_server):
         ws, rest = get_clients(ctx)
         result = await ws.send_command("config/label_registry/list")
         return json.dumps(result, indent=2)
+
+    @mcp_server.tool()
+    async def list_categories(ctx: Context, scope: str | None = None) -> str:
+        """List categories registered in Home Assistant.
+
+        Args:
+            scope: Optional scope to filter by (e.g. 'automation', 'script', 'scene').
+                If omitted, categories from common scopes are retrieved and grouped by scope.
+        """
+        ws, _rest = get_clients(ctx)
+        if scope:
+            result = await ws.send_command("config/category_registry/list", scope=scope)
+            return json.dumps(result, indent=2)
+
+        # When scope is omitted, fetch categories across common scopes
+        common_scopes = ["automation", "script", "scene"]
+        categories_by_scope = {}
+        for s in common_scopes:
+            try:
+                res = await ws.send_command("config/category_registry/list", scope=s)
+                if res:
+                    categories_by_scope[s] = res
+            except Exception as e:
+                logger.debug("Failed to list categories for scope '%s': %s", s, e)
+
+        return json.dumps(categories_by_scope, indent=2)
 
     @mcp_server.tool()
     async def get_entity_details(ctx: Context, entity_id: str) -> str:

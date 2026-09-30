@@ -1,4 +1,4 @@
-"""Registry mutation tools for areas, floors, labels, devices, and entities.
+"""Registry mutation tools for areas, floors, labels, categories, devices, and entities.
 
 These complement the read-only registry tools in ``registry.py`` by allowing
 creation, renaming, organisation (area/floor/label assignment), and removal of
@@ -322,6 +322,100 @@ def register_registry_edit_tools(mcp_server):
         return json.dumps({"status": "deleted", "label_id": label_id})
 
     # ------------------------------------------------------------------
+    # Categories
+    # ------------------------------------------------------------------
+
+    @mcp_server.tool()
+    async def create_category(
+        ctx: Context,
+        scope: str,
+        name: str,
+        icon: str | None = None,
+        skip_confirm: bool = False,
+    ) -> str:
+        """Create a new category in the category registry for a specific scope.
+
+        Args:
+            scope: The category scope (e.g. 'automation', 'script', 'scene').
+            name: Display name for the category (e.g. 'Morning Routines').
+            icon: Optional MDI icon (e.g. 'mdi:weather-sunny').
+            skip_confirm: If true, skip the dry-run confirmation prompt.
+        """
+        ws, _rest = get_clients(ctx)
+        payload = _drop_none({"scope": scope, "name": name, "icon": icon})
+        if not await confirm_change(
+            ctx=ctx, action="CREATE", entity_type="category",
+            identifier=f"{scope}:{name}", config=payload, skip_confirm=skip_confirm,
+        ):
+            return json.dumps({"status": "cancelled", "message": "Category creation cancelled."})
+
+        result = await ws.send_command("config/category_registry/create", **payload)
+        return json.dumps({"status": "created", "category": result}, indent=2)
+
+    @mcp_server.tool()
+    async def update_category(
+        ctx: Context,
+        scope: str,
+        category_id: str,
+        name: str | None = None,
+        icon: str | None = None,
+        skip_confirm: bool = False,
+    ) -> str:
+        """Update an existing category (rename or change icon).
+
+        Args:
+            scope: The scope of the category (e.g. 'automation', 'script').
+            category_id: The ID of the category to update.
+            name: New display name for the category.
+            icon: New MDI icon (e.g. 'mdi:leaf').
+            skip_confirm: If true, skip the dry-run confirmation prompt.
+        """
+        ws, _rest = get_clients(ctx)
+        changes = _drop_none({"name": name, "icon": icon})
+        if not changes:
+            return json.dumps({"error": "No fields provided to update."})
+
+        preview = {"scope": scope, "category_id": category_id, **changes}
+        if not await confirm_change(
+            ctx=ctx, action="UPDATE", entity_type="category",
+            identifier=f"{scope}:{category_id}", config=preview, skip_confirm=skip_confirm,
+        ):
+            return json.dumps({"status": "cancelled", "message": "Category update cancelled."})
+
+        result = await ws.send_command(
+            "config/category_registry/update", scope=scope, category_id=category_id, **changes
+        )
+        return json.dumps({"status": "updated", "category": result}, indent=2)
+
+    @mcp_server.tool()
+    async def delete_category(
+        ctx: Context,
+        scope: str,
+        category_id: str,
+        skip_confirm: bool = False,
+    ) -> str:
+        """Delete a category from the registry.
+
+        Args:
+            scope: The scope of the category (e.g. 'automation', 'script').
+            category_id: The category ID to delete.
+            skip_confirm: If true, skip the dry-run confirmation prompt.
+        """
+        ws, _rest = get_clients(ctx)
+        if not await confirm_change(
+            ctx=ctx, action="DELETE", entity_type="category",
+            identifier=f"{scope}:{category_id}",
+            config={"scope": scope, "category_id": category_id},
+            skip_confirm=skip_confirm,
+        ):
+            return json.dumps({"status": "cancelled", "message": "Category deletion cancelled."})
+
+        await ws.send_command(
+            "config/category_registry/delete", scope=scope, category_id=category_id
+        )
+        return json.dumps({"status": "deleted", "category_id": category_id, "scope": scope})
+
+    # ------------------------------------------------------------------
     # Entities
     # ------------------------------------------------------------------
 
@@ -334,6 +428,7 @@ def register_registry_edit_tools(mcp_server):
         area_id: str | None = None,
         new_entity_id: str | None = None,
         labels: list[str] | None = None,
+        categories: dict[str, str | None] | None = None,
         hidden: bool | None = None,
         disabled: bool | None = None,
         aliases: list[str] | None = None,
@@ -342,7 +437,7 @@ def register_registry_edit_tools(mcp_server):
         """Update an entity in the entity registry.
 
         Lets you rename an entity, change its entity_id, assign it to an area,
-        attach labels, set a custom icon, and hide or disable it.
+        attach labels, assign categories per scope, set a custom icon, and hide or disable it.
 
         Args:
             entity_id: The entity to update (e.g. 'light.living_room').
@@ -351,6 +446,7 @@ def register_registry_edit_tools(mcp_server):
             area_id: Area to assign the entity to (overrides the device's area).
             new_entity_id: Rename the entity_id itself (e.g. 'light.lounge').
             labels: Replacement list of label IDs.
+            categories: Mapping of scope to category ID (or None to unassign from that scope).
             hidden: True to hide, False to unhide.
             disabled: True to disable, False to enable.
             aliases: Replacement list of voice-assistant aliases.
@@ -368,6 +464,7 @@ def register_registry_edit_tools(mcp_server):
                 "area_id": area_id,
                 "new_entity_id": new_entity_id,
                 "labels": labels,
+                "categories": categories,
                 "aliases": aliases,
             }
         )
