@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     port: int = 8099
     skip_confirm_default: bool = False
     log_level: str = "INFO"
+    stateless_http: bool = True
 
     model_config = SettingsConfigDict(env_prefix="HA_MCP_")
 

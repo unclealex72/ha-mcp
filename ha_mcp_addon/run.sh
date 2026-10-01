@@ -34,6 +34,8 @@ export HA_MCP_TRANSPORT="${TRANSPORT}"
 export HA_MCP_HOST="0.0.0.0"
 export HA_MCP_PORT=8099
 export HA_MCP_LOG_LEVEL="${LOG_LEVEL}"
+export HA_MCP_STATELESS_HTTP="true"
+export FASTMCP_STATELESS_HTTP="true"
 
 echo "[INFO] Starting Home Assistant MCP Server..."
 echo "[INFO] Transport: ${TRANSPORT}"

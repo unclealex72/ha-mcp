@@ -22,7 +22,18 @@ def main():
     if settings.transport == "stdio":
         mcp.run(transport="stdio")
     elif settings.transport == "http":
-        mcp.run(transport="http", host=settings.host, port=settings.port)
+        logger.info(
+            "Starting Home Assistant MCP Server (transport=http, host=%s, port=%s, stateless=%s)",
+            settings.host,
+            settings.port,
+            settings.stateless_http,
+        )
+        mcp.run(
+            transport="http",
+            host=settings.host,
+            port=settings.port,
+            stateless_http=settings.stateless_http,
+        )
     elif settings.transport == "sse":
         mcp.run(transport="sse", host=settings.host, port=settings.port)
 
